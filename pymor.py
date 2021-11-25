@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-
 import tempfile, time, json, sys, subprocess, argparse, os
-from subprocess import call
+from os.path import expanduser
+from pydub import AudioSegment
+from pydub.playback import play
 
 parser = argparse.ArgumentParser(description='Set your pomodoro. The default pomodoro is 25m')
 parser.add_argument('-p', type=int, help='Your pomodoro minutes')
@@ -10,16 +11,20 @@ parser.add_argument('-c', nargs='?', const=1, type=int, help='This is used for c
 args = parser.parse_args()
 
 def get_temp_file():
-    return [filename for filename in os.listdir('/tmp/') if filename.startswith('pymor') and filename.endswith('.txt')]
-
-def play_sound(path, time):
-    call(['aplay', '-d', str(time), path])
-    return
+    return [filename for filename in os.listdir('/tmp/') if filename.startswith('pymor-test') and filename.endswith('.txt')]
 
 def reading_file(path):
     with open(path, 'r') as file:
         filedata = file.read()
         return filedata
+
+def play_sound(sound):
+    pymor_sounds = expanduser("~") + '/.config/pymor/sounds/'
+    try:
+        song = AudioSegment.from_wav(pymor_sounds + sound)
+        play(song)
+    except:
+        print('Sound not found!')
 
 def cancel(path):
     with open(path, 'r') as file:
@@ -38,7 +43,7 @@ def is_active(word):
         return False
 
 def sendmessage(message):
-    subprocess.Popen(['notify-send.py', '--replaces-id', '1', '--replaces-process', '1', '-u', 'critical', message])
+    subprocess.Popen(['notify-send.sh', '--replace-file', '/tmp/pomodoro', '-u', 'critical', message])
     return
 
 # If it's running
@@ -54,12 +59,13 @@ elif not get_temp_file() and args.c:
     sendmessage('Pomodoro has not been initiated!')
     exit()
 
-temp = tempfile.NamedTemporaryFile(suffix='.txt', prefix='pymor')
+pymor_config = expanduser("~") + '/.config/pymor/'
+temp = tempfile.NamedTemporaryFile(suffix='.txt', prefix='pymor-test')
 file_path = '/tmp/' + get_temp_file()[0]
 temp.write(b'active: true')
 temp.seek(0)
 pomodoro=None
-leizure_time=None
+leisure_time=None
 should_cancel = args.c
 
 if args.p:
@@ -68,26 +74,23 @@ else:
     pomodoro = 25 * 60
 
 if args.l:
-    leizure_time = pomodoro - args.l * 60
-
+    leisure_time = pomodoro - args.l * 60
 
 sendmessage('Pomodoro has started')
-play_sound('/home/aedigo/Documents/Musics/Pomodoro/pomo-start.wav', 1)
+play_sound('start.wav')
 while 0 <= pomodoro:
     pomodoro -= 1
     time.sleep(1) 
     if is_active(reading_file(file_path)) == False:
         sendmessage('Pomodoro was canceled!')
-        play_sound('/home/aedigo/Documents/Musics/Pomodoro/pomo-cancel.wav', 1)
+        play_sound('cancel.wav')
         break;
 
-    if pomodoro == leizure_time:
+    if pomodoro == leisure_time:
         sendmessage('Back to work!')
-        play_sound('/home/aedigo/Documents/Musics/Pomodoro/pomo-start.wav', 1)
-       
-#    print(temp.name, pomodoro, leizure_time, is_active(reading_file()))
+        play_sound('leisure_time.wav')
+
 else:
     sendmessage('Done! Nice job!')
-    play_sound('/home/aedigo/Documents/Musics/Pomodoro/end.wav', 3)
+    play_sound('end.wav')
     temp.close()
-
